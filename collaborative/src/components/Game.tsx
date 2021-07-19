@@ -38,7 +38,6 @@ const session = client.Session.Companion.connect(
   CONFIG.serviceUrl,
   CONFIG.credentials
 );
-const collection = session.openCollection("sudoku", false);
 
 /**
  * Interface for the state of a Game.
@@ -46,6 +45,7 @@ const collection = session.openCollection("sudoku", false);
  */
 interface IGameState {
   gridNum: string;
+  collection: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   mvmap: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   cells: { value: string; modifiable: boolean }[];
   isConnected: boolean;
@@ -65,14 +65,15 @@ class Game extends React.Component<Record<string, unknown>, IGameState> {
       .map(() => ({ value: "", modifiable: false }));
     this.modifiedCells = new Array(81).fill(null);
     const gridNum = "1";
-    const mvmap = collection.open(
-      "grid" + gridNum,
-      "MVMap",
+    const collection = session.openCollection(
+      "sudoku",
       false,
       this.handler.bind(this)
     );
+    const mvmap = collection.open("grid" + gridNum, "MVMap", false);
     this.state = {
       gridNum: gridNum,
+      collection: collection,
       mvmap: mvmap,
       cells: cells,
       isConnected: true,
@@ -101,7 +102,7 @@ class Game extends React.Component<Record<string, unknown>, IGameState> {
    */
   private setGetTimeout() {
     this.timeoutGet = setTimeout(() => {
-      collection.forceGet(this.state.mvmap);
+      this.state.collection.forceGet(this.state.mvmap);
       this.setGetTimeout();
     }, TIMEOUTGET);
   }
@@ -122,7 +123,7 @@ class Game extends React.Component<Record<string, unknown>, IGameState> {
     }
     clearTimeout(this.timeoutGet);
     const cells = this.state.cells;
-    collection.pull(client.utils.ConsistencyLevel.None);
+    this.state.collection.pull(client.utils.ConsistencyLevel.None);
     for (let index = 0; index < 81; index++) {
       if (cells[index].modifiable) {
         cells[index].value = "";
@@ -236,12 +237,7 @@ class Game extends React.Component<Record<string, unknown>, IGameState> {
     ) {
       return;
     }
-    const mvmap = collection.open(
-      "grid" + gridNum,
-      "MVMap",
-      false,
-      this.handler.bind(this)
-    );
+    const mvmap = this.state.collection.open("grid" + gridNum, "MVMap", false);
     this.setState({ gridNum: gridNum, mvmap: mvmap });
     this.initFrom(generateStaticGrid(gridNum));
   }
